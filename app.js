@@ -2,17 +2,52 @@
 
 // ---------- Хранилище ----------
 const KEY = 'gym.v1';
-const store = load();
+let store = null; // загружается в самом конце, когда объявлены все функции
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && typeof s === 'object') return Object.assign(blank(), s);
+    if (s && typeof s === 'object') return migrate(Object.assign(blank(), s));
   } catch (e) {}
   return blank();
 }
 function blank() {
   return { last: {}, lastCardio: null, variant: {}, history: [], active: null };
+}
+
+// v1: выбор альтернативы и активная тренировка ссылались на номер упражнения в дне.
+// В v2 план поменялся (новые упражнения в середине дня), поэтому привязываемся к основному упражнению.
+const PLAN_V1 = {
+  d1: ['leg_press', 'smith_bench', 'lat_pulldown', 'machine_shoulder', 'ez_curl', 'lying_leg_curl', 'cable_crunch', 'treadmill'],
+  d2: ['leg_press', 'db_shoulder', 'cable_row', 'smith_incline', 'pushdown', 'hanging_raise', 'treadmill'],
+  d3: ['leg_press', 'hammer_row', 'hammer_press', 'hammer_curl', 'butterfly', 'hyperext', 'treadmill']
+};
+function migrate(s) {
+  if ((s.v || 1) < 2) {
+    const variant = {};
+    for (const [k, ex] of Object.entries(s.variant || {})) {
+      const [dayId, slot] = k.split(':');
+      const base = PLAN_V1[dayId] && PLAN_V1[dayId][+slot];
+      if (base) variant[dayId + ':' + base] = ex;
+    }
+    s.variant = variant;
+    const a = s.active;
+    if (a && PLAN_V1[a.dayId] && dayById(a.dayId)) {
+      const old = {};
+      a.items.forEach((it) => { old[PLAN_V1[a.dayId][it.slot]] = it; });
+      const curBase = PLAN_V1[a.dayId][a.items[a.idx] ? a.items[a.idx].slot : 0];
+      const day = dayById(a.dayId);
+      a.items = day.items.map((pi, slot) => {
+        const o = old[pi.ex];
+        if (o) return Object.assign(o, { slot });
+        return newItem(a.dayId, pi, slot, variant, s);
+      });
+      a.idx = Math.max(0, day.items.findIndex((pi) => pi.ex === curBase));
+    }
+    s.v = 2;
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+  }
+  return s;
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
@@ -23,7 +58,7 @@ const $ = (sel) => document.querySelector(sel);
 const app = $('#app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dayById = (id) => PLAN.find((d) => d.id === id);
-const maxReps = (reps) => String(reps).split(/[–-]/).pop().trim();
+const maxReps = (reps) => (String(reps).split(/[–-]/).pop().match(/\d+/) || [''])[0];
 const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
 const fmtNum = (n) => (n == null ? '' : String(Math.round(n * 100) / 100).replace('.', ','));
 
@@ -89,10 +124,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- Сессия ----------
-function variantKey(dayId, slot) { return dayId + ':' + slot; }
+function variantKey(dayId, planItem) { return dayId + ':' + planItem.ex; }
 
-function makeSets(item, exKey) {
-  const last = store.last[exKey];
+function makeSets(item, exKey, s = store) {
+  const last = s.last[exKey];
   const sets = [];
   for (let i = 0; i < item.sets; i++) {
     const prev = last && (last.sets[i] || last.sets[last.sets.length - 1]);
@@ -101,20 +136,22 @@ function makeSets(item, exKey) {
   return sets;
 }
 
+function newItem(dayId, it, slot, variant, s) {
+  if (it.cardio) {
+    const lc = s.lastCardio || {};
+    return { slot, ex: it.ex, cardio: { min: fmtNum(lc.min), speed: fmtNum(lc.speed), incline: fmtNum(lc.incline), done: false, timerEnd: null, timerLeft: null } };
+  }
+  const options = [it.ex, ...(it.alts || [])];
+  const saved = variant[variantKey(dayId, it)];
+  const ex = options.includes(saved) ? saved : it.ex;
+  return { slot, ex, sets: makeSets(it, ex, s) };
+}
+
 function startWorkout(dayId) {
   const day = dayById(dayId);
   store.active = {
     dayId, startedAt: Date.now(), idx: 0, rest: null,
-    items: day.items.map((it, slot) => {
-      if (it.cardio) {
-        const lc = store.lastCardio || {};
-        return { slot, ex: it.ex, cardio: { min: fmtNum(lc.min), speed: fmtNum(lc.speed), incline: fmtNum(lc.incline), done: false, timerEnd: null, timerLeft: null } };
-      }
-      const options = [it.ex, ...(it.alts || [])];
-      const saved = store.variant[variantKey(dayId, slot)];
-      const ex = options.includes(saved) ? saved : it.ex;
-      return { slot, ex, sets: makeSets(it, ex) };
-    })
+    items: day.items.map((it, slot) => newItem(dayId, it, slot, store.variant, store))
   };
   save();
   unlockAudio();
@@ -151,9 +188,17 @@ function finishWorkout() {
 }
 
 // ---------- Таймеры ----------
-function startRest(sec) {
+// kind: 'rest' — отдых между подходами, 'work' — таймер подхода на время (прогулка фермера, вис).
+const REST_LABELS = {
+  rest: ['Отдых', 'Отдых окончен — следующий подход!'],
+  work: ['Подход', 'Время вышло — отметь подход ✓']
+};
+const restLabel = (r, over) => REST_LABELS[r.kind || 'rest'][over ? 1 : 0];
+
+function startRest(sec, kind = 'rest') {
   const a = store.active;
-  a.rest = { endAt: Date.now() + sec * 1000, total: sec, alerted: false };
+  const old = $('#rest'); if (old) old.remove();
+  a.rest = { endAt: Date.now() + sec * 1000, total: sec, alerted: false, kind };
   save();
   renderRest();
 }
@@ -176,7 +221,7 @@ function tick() {
     if (left <= 0 && !a.rest.alerted) {
       a.rest.alerted = true; save();
       buzz(); beep(3);
-      if (box) { box.classList.add('over'); const lbl = $('#rest-label'); if (lbl) lbl.textContent = 'Отдых окончен — следующий подход!'; }
+      if (box) { box.classList.add('over'); const lbl = $('#rest-label'); if (lbl) lbl.textContent = restLabel(a.rest, true); }
     }
   }
 
@@ -262,7 +307,7 @@ function viewHome() {
       <div class="sub" style="margin-top:8px">${last ? 'Последний раз: ' + fmtDate(last, true) : 'Ещё не выполнялась'}</div>
     </button>`;
   }
-  html += `<div class="sub" style="margin-top:4px">Тренировка ≈ 60–75 минут, включая 5–10 минут разминки.</div>
+  html += `<div class="sub" style="margin-top:4px">Силовая ≈ 70–80 минут, плюс 15–20 минут ходьбы после.</div>
     <div class="footer-links">
       <button class="btn ghost small" data-act="history">📈 История (${store.history.length})</button>
       <button class="btn ghost small" data-act="export">⬇ Резервная копия</button>
@@ -288,7 +333,7 @@ function viewDay(dayId) {
     const last = store.last[it.ex];
     html += `<div class="ex-line"><div><b>${esc(ex.name)}</b>
       <div class="sub">отдых ${esc(it.restText)}${it.alts && it.alts.length ? ' · альт: ' + it.alts.map((k) => esc(EX[k].name.toLowerCase())).join(', ') : ''}</div>
-      ${last ? `<div class="sub">рабочий вес: ${setsText(last.sets)}</div>` : ''}</div>
+      ${last ? `<div class="sub">рабочий вес: ${setsText(last.sets, it.ex)}</div>` : ''}</div>
       <div style="white-space:nowrap">${it.sets} × ${esc(it.reps)}</div></div>`;
   }
   html += `</div></div>
@@ -302,8 +347,13 @@ function viewDay(dayId) {
   return html;
 }
 
-function setsText(sets) {
-  return sets.map((s) => (s.w != null ? fmtNum(s.w) + ' кг' : '—') + (s.r != null ? '×' + fmtNum(s.r) : '')).join(', ');
+function setsText(sets, exKey) {
+  const timed = EX[exKey] && EX[exKey].timed;
+  return sets.map((s) => {
+    const w = s.w != null ? fmtNum(s.w) + ' кг' : (timed ? '' : '—');
+    const r = s.r == null ? '' : timed ? fmtNum(s.r) + ' с' : '×' + fmtNum(s.r);
+    return timed && w && r ? w + ' · ' + r : w + r;
+  }).join(', ');
 }
 function cardioText(c) {
   const p = [];
@@ -347,8 +397,8 @@ function viewWorkout() {
         `<button class="chip ${k === it.ex ? 'on' : ''}" data-act="variant" data-ex="${k}">${i ? 'Альт: ' : ''}${esc(EX[k].name)}</button>`).join('')}</div>`;
     }
     const last = store.last[it.ex];
-    if (last) html += `<div class="last">Прошлый раз (${fmtDate(last.date)}): ${setsText(last.sets)}</div>`;
-    html += `<table class="sets"><tr><th>#</th><th>Вес, кг</th><th>Повторы</th><th></th></tr>`;
+    if (last) html += `<div class="last">Прошлый раз (${fmtDate(last.date)}): ${setsText(last.sets, it.ex)}</div>`;
+    html += `<table class="sets"><tr><th>#</th><th>Вес, кг</th><th>${ex.timed ? 'Секунды' : 'Повторы'}</th><th></th></tr>`;
     it.sets.forEach((s, i) => {
       const lastR = last && last.sets[i] && last.sets[i].r != null ? fmtNum(last.sets[i].r) : maxReps(planItem.reps);
       html += `<tr class="${s.done ? 'done' : ''}">
@@ -363,6 +413,7 @@ function viewWorkout() {
         <button class="btn small ghost" data-act="add-set">+ подход</button>
         ${it.sets.length > 1 ? '<button class="btn small ghost" data-act="rm-set">− подход</button>' : ''}
         <span style="flex:1"></span>
+        ${ex.timed ? `<button class="btn small" data-act="work-timer">▶ ${maxReps(planItem.reps)} с</button>` : ''}
         <button class="btn small ghost" data-act="rest-now">⏱ Отдых</button>
       </div>`;
   }
@@ -414,7 +465,7 @@ function renderRest() {
     el = document.createElement('div');
     el.id = 'rest'; el.className = 'rest';
     el.innerHTML = `<div class="inner">
-      <div class="sub" id="rest-label">Отдых</div>
+      <div class="sub" id="rest-label">${restLabel(a.rest, false)}</div>
       <div class="time" id="rest-time">0:00</div>
       <div class="bar"><i id="rest-bar" style="width:100%"></i></div>
       <div class="btns">
@@ -426,7 +477,7 @@ function renderRest() {
   }
   if (a.rest.alerted) {
     el.classList.add('over');
-    $('#rest-label').textContent = 'Отдых окончен — следующий подход!';
+    $('#rest-label').textContent = restLabel(a.rest, true);
   }
   tick();
 }
@@ -435,7 +486,7 @@ function viewSummary(id) {
   const e = store.history.find((x) => x.id === id);
   if (!e) return viewHome();
   let vol = 0, sets = 0;
-  for (const it of e.items) if (it.sets) for (const s of it.sets) { sets++; vol += (s.w || 0) * (s.r || 0); }
+  for (const it of e.items) if (it.sets) for (const s of it.sets) { sets++; if (!(EX[it.ex] && EX[it.ex].timed)) vol += (s.w || 0) * (s.r || 0); }
   return `<div class="wrap" style="text-align:center">
     <div style="font-size:64px;margin-top:24px">🏆</div>
     <h1>Тренировка завершена!</h1>
@@ -452,7 +503,7 @@ function viewSummary(id) {
 
 function historyItems(e) {
   return e.items.map((it) => `<div class="hist-ex"><b>${esc(EX[it.ex] ? EX[it.ex].name : it.ex)}</b><br>
-    <span class="muted">${it.cardio ? cardioText(it.cardio) : setsText(it.sets)}</span></div>`).join('') || '<div class="muted">Нет выполненных подходов</div>';
+    <span class="muted">${it.cardio ? cardioText(it.cardio) : setsText(it.sets, it.ex)}</span></div>`).join('') || '<div class="muted">Нет выполненных подходов</div>';
 }
 
 function viewHistory() {
@@ -504,7 +555,7 @@ document.addEventListener('click', (ev) => {
       if (dirty && !confirm('Отмеченные подходы сбросятся. Переключить упражнение?')) break;
       it.ex = k;
       it.sets = makeSets(dayById(a.dayId).items[it.slot], k);
-      store.variant[variantKey(a.dayId, it.slot)] = k;
+      store.variant[variantKey(a.dayId, dayById(a.dayId).items[it.slot])] = k;
       save(); render();
       break;
     }
@@ -528,12 +579,13 @@ document.addEventListener('click', (ev) => {
     }
     case 'add-set': readInputs(); { const l = it.sets[it.sets.length - 1]; it.sets.push({ w: l ? l.w : '', r: '', done: false }); } save(); render(); break;
     case 'rm-set': readInputs(); if (it.sets.length > 1) it.sets.pop(); save(); render(); break;
+    case 'work-timer': startRest(+maxReps(dayById(a.dayId).items[it.slot].reps) || 40, 'work'); break;
     case 'rest-now': startRest(dayById(a.dayId).items[it.slot].rest || 90); break;
     case 'rest-add':
       if (a.rest) {
         a.rest.endAt += (+b.dataset.s) * 1000;
         a.rest.total = Math.max(1, a.rest.total + (+b.dataset.s));
-        if (a.rest.endAt > Date.now()) { a.rest.alerted = false; const el = $('#rest'); if (el) { el.classList.remove('over'); $('#rest-label').textContent = 'Отдых'; } }
+        if (a.rest.endAt > Date.now()) { a.rest.alerted = false; const el = $('#rest'); if (el) { el.classList.remove('over'); $('#rest-label').textContent = restLabel(a.rest, false); } }
         save(); tick();
       }
       break;
@@ -623,13 +675,14 @@ function importData() {
       const data = JSON.parse(await inp.files[0].text());
       if (!data || !Array.isArray(data.history)) throw new Error();
       if (!confirm('Заменить текущие данные данными из файла?')) return;
-      Object.assign(store, blank(), data); save(); render(); toast('Данные восстановлены');
+      store = migrate(Object.assign(blank(), data)); save(); render(); toast('Данные восстановлены');
     } catch (e) { alert('Не удалось прочитать файл'); }
   };
   inp.click();
 }
 
 // ---------- Старт ----------
+store = load();
 history.replaceState(view, '');
 if (store.active) view = { name: 'workout' }, history.replaceState(view, '');
 render();
