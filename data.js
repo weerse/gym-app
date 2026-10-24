@@ -361,42 +361,40 @@ const EX = {
 // План. rest — секунды по умолчанию (середина диапазона), restText — как в плане.
 const PLAN = [
   {
-    id: 'd1', title: 'День 1', weekday: 2, weekdayName: 'Вторник',
+    id: 'd1', title: 'День 1', weekday: 2, weekdayName: 'Вторник', focus: 'спина и плечи',
     items: [
-      { ex: 'leg_press', sets: 3, reps: '10–12', rest: 150, restText: '2–3 мин', alts: ['hack_squat'] },
-      { ex: 'smith_bench', sets: 3, reps: '8–10', rest: 150, restText: '2–3 мин', alts: ['hammer_press'] },
       { ex: 'lat_pulldown', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hammer_pulldown_wide'] },
+      { ex: 'smith_bench', sets: 3, reps: '8–10', rest: 150, restText: '2–3 мин', alts: ['hammer_press'] },
       { ex: 'machine_shoulder', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['db_shoulder'] },
-      { ex: 'lateral_raise', sets: 3, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
+      { ex: 'lateral_raise', sets: 4, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
+      { ex: 'leg_press', sets: 3, reps: '10–12', rest: 150, restText: '2–3 мин', alts: ['hack_squat'] },
       { ex: 'ez_curl', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['cable_curl'] },
-      { ex: 'lying_leg_curl', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['seated_leg_curl'] },
       { ex: 'cable_crunch', sets: 3, reps: '15', rest: 60, restText: '60 с', alts: ['hanging_raise'] },
       { ex: 'treadmill', cardio: true }
     ]
   },
   {
-    id: 'd2', title: 'День 2', weekday: 4, weekdayName: 'Четверг',
+    id: 'd2', title: 'День 2', weekday: 4, weekdayName: 'Четверг', focus: 'ноги и грудь',
     items: [
       { ex: 'leg_press', sets: 3, reps: '10–12', rest: 150, restText: '2–3 мин', alts: ['lunges', 'leg_ext'] },
-      { ex: 'db_shoulder', sets: 3, reps: '10', rest: 120, restText: '2 мин', alts: ['machine_shoulder'] },
-      { ex: 'cable_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hammer_row_narrow'] },
       { ex: 'smith_incline', sets: 3, reps: '10', rest: 120, restText: '2 мин', alts: ['butterfly', 'db_fly'] },
+      { ex: 'cable_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hammer_row_narrow'] },
+      { ex: 'db_shoulder', sets: 3, reps: '10', rest: 120, restText: '2 мин', alts: ['machine_shoulder'] },
       { ex: 'pushdown', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['rope_pushdown'] },
       { ex: 'hanging_raise', sets: 3, reps: '12', rest: 60, restText: '60 с', alts: ['cable_crunch'] },
-      { ex: 'wrist_curl_bb', sets: 3, reps: '15–20', rest: 60, restText: '60 с', alts: ['wrist_curl_db'] },
+      { ex: 'wrist_curl_bb', sets: 3, reps: '15–20', rest: 60, restText: '60 с', alts: ['wrist_curl_db'], note: 'по желанию' },
       { ex: 'treadmill', cardio: true }
     ]
   },
   {
-    id: 'd3', title: 'День 3', weekday: 6, weekdayName: 'Суббота',
+    id: 'd3', title: 'День 3', weekday: 6, weekdayName: 'Суббота', focus: 'спина, плечи, задняя поверхность бедра',
     items: [
-      { ex: 'leg_press', sets: 3, reps: '10–12', rest: 150, restText: '2–3 мин', alts: ['hack_squat', 'lunges'] },
       { ex: 'hammer_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['lat_pulldown'] },
       { ex: 'hammer_press', sets: 3, reps: '10', rest: 150, restText: '2–3 мин', alts: ['smith_bench'] },
-      { ex: 'lateral_raise', sets: 3, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
+      { ex: 'lateral_raise', sets: 4, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
+      { ex: 'db_rdl', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hyperext'] },
+      { ex: 'lying_leg_curl', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['seated_leg_curl'] },
       { ex: 'hammer_curl', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['cable_hammer'] },
-      { ex: 'butterfly', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['crossover'] },
-      { ex: 'hyperext', sets: 3, reps: '12', rest: 90, restText: '90 с', alts: ['db_rdl'] },
       { ex: 'farmer_walk', sets: 3, reps: '30–40 с', rest: 75, restText: '60–90 с', alts: ['dead_hang'] },
       { ex: 'treadmill', cardio: true }
     ]

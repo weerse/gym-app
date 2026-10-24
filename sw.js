@@ -1,4 +1,4 @@
-const CACHE = 'gym-v2';
+const CACHE = 'gym-v3';
 const ASSETS = [
   './', 'index.html', 'app.js', 'data.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png',

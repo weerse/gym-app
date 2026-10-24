@@ -15,41 +15,61 @@ function blank() {
   return { last: {}, lastCardio: null, variant: {}, history: [], active: null };
 }
 
+// Старые версии плана: нужны, чтобы перенести данные, сохранённые до их изменения.
 // v1: выбор альтернативы и активная тренировка ссылались на номер упражнения в дне.
-// В v2 план поменялся (новые упражнения в середине дня), поэтому привязываемся к основному упражнению.
-const PLAN_V1 = {
-  d1: ['leg_press', 'smith_bench', 'lat_pulldown', 'machine_shoulder', 'ez_curl', 'lying_leg_curl', 'cable_crunch', 'treadmill'],
-  d2: ['leg_press', 'db_shoulder', 'cable_row', 'smith_incline', 'pushdown', 'hanging_raise', 'treadmill'],
-  d3: ['leg_press', 'hammer_row', 'hammer_press', 'hammer_curl', 'butterfly', 'hyperext', 'treadmill']
+// v2: активная тренировка ещё не хранила основное упражнение (base) у каждого пункта.
+// Начиная с v3 пункты знают своё base, и rebaseActive переносит тренировку на любой новый план.
+const OLD_PLANS = {
+  1: {
+    d1: ['leg_press', 'smith_bench', 'lat_pulldown', 'machine_shoulder', 'ez_curl', 'lying_leg_curl', 'cable_crunch', 'treadmill'],
+    d2: ['leg_press', 'db_shoulder', 'cable_row', 'smith_incline', 'pushdown', 'hanging_raise', 'treadmill'],
+    d3: ['leg_press', 'hammer_row', 'hammer_press', 'hammer_curl', 'butterfly', 'hyperext', 'treadmill']
+  },
+  2: {
+    d1: ['leg_press', 'smith_bench', 'lat_pulldown', 'machine_shoulder', 'lateral_raise', 'ez_curl', 'lying_leg_curl', 'cable_crunch', 'treadmill'],
+    d2: ['leg_press', 'db_shoulder', 'cable_row', 'smith_incline', 'pushdown', 'hanging_raise', 'wrist_curl_bb', 'treadmill'],
+    d3: ['leg_press', 'hammer_row', 'hammer_press', 'lateral_raise', 'hammer_curl', 'butterfly', 'hyperext', 'farmer_walk', 'treadmill']
+  }
 };
 function migrate(s) {
-  if ((s.v || 1) < 2) {
+  const v = s.v || 1;
+  if (v < 2) {
     const variant = {};
     for (const [k, ex] of Object.entries(s.variant || {})) {
       const [dayId, slot] = k.split(':');
-      const base = PLAN_V1[dayId] && PLAN_V1[dayId][+slot];
+      const base = OLD_PLANS[1][dayId] && OLD_PLANS[1][dayId][+slot];
       if (base) variant[dayId + ':' + base] = ex;
     }
     s.variant = variant;
-    const a = s.active;
-    if (a && PLAN_V1[a.dayId] && dayById(a.dayId)) {
-      const old = {};
-      a.items.forEach((it) => { old[PLAN_V1[a.dayId][it.slot]] = it; });
-      const curBase = PLAN_V1[a.dayId][a.items[a.idx] ? a.items[a.idx].slot : 0];
-      const day = dayById(a.dayId);
-      a.items = day.items.map((pi, slot) => {
-        const o = old[pi.ex];
-        if (o) return Object.assign(o, { slot });
-        return newItem(a.dayId, pi, slot, variant, s);
-      });
-      a.idx = Math.max(0, day.items.findIndex((pi) => pi.ex === curBase));
-    }
-    s.v = 2;
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
   }
+  const a = s.active;
+  if (a && v < 3) {
+    const old = OLD_PLANS[v] && OLD_PLANS[v][a.dayId];
+    a.items.forEach((it) => { it.base = old ? old[it.slot] : it.ex; });
+  }
+  if (a) rebaseActive(a, s);
+  s.v = 3;
+  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
   return s;
 }
-function save() {
+
+// Подгоняет незавершённую тренировку под текущий план: отмеченные подходы остаются,
+// новые упражнения добавляются, курсор остаётся на том же упражнении.
+function rebaseActive(a, s) {
+  const day = dayById(a.dayId);
+  if (!day) { s.active = null; return; }
+  if (a.items.map((it) => it.base).join() === day.items.map((pi) => pi.ex).join()) return;
+  const cur = a.items[a.idx];
+  const left = [...a.items];
+  const take = (pred) => { const i = left.findIndex(pred); return i < 0 ? null : left.splice(i, 1)[0]; };
+  const matched = day.items.map((pi) => take((it) => it.base === pi.ex));
+  // Если основное упражнение сменилось, но выбранное раньше стало альтернативой — тоже переносим.
+  a.items = day.items.map((pi, slot) => {
+    const o = matched[slot] || take((it) => [pi.ex, ...(pi.alts || [])].includes(it.ex) && !!it.cardio === !!pi.cardio);
+    return o ? Object.assign(o, { slot, base: pi.ex }) : newItem(a.dayId, pi, slot, s.variant, s);
+  });
+  a.idx = Math.max(0, a.items.indexOf(cur));
+}function save() {
   try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
 }
 
@@ -139,12 +159,12 @@ function makeSets(item, exKey, s = store) {
 function newItem(dayId, it, slot, variant, s) {
   if (it.cardio) {
     const lc = s.lastCardio || {};
-    return { slot, ex: it.ex, cardio: { min: fmtNum(lc.min), speed: fmtNum(lc.speed), incline: fmtNum(lc.incline), done: false, timerEnd: null, timerLeft: null } };
+    return { slot, base: it.ex, ex: it.ex, cardio: { min: fmtNum(lc.min), speed: fmtNum(lc.speed), incline: fmtNum(lc.incline), done: false, timerEnd: null, timerLeft: null } };
   }
   const options = [it.ex, ...(it.alts || [])];
   const saved = variant[variantKey(dayId, it)];
   const ex = options.includes(saved) ? saved : it.ex;
-  return { slot, ex, sets: makeSets(it, ex, s) };
+  return { slot, base: it.ex, ex, sets: makeSets(it, ex, s) };
 }
 
 function startWorkout(dayId) {
@@ -303,11 +323,12 @@ function viewHome() {
         <h2>${esc(d.title)} <span class="sub" style="font-weight:400">· ${esc(d.weekdayName)}</span></h2>
         ${isToday ? '<span class="badge green">Сегодня</span>' : d.id === next ? '<span class="badge green">Следующая</span>' : ''}
       </div>
+      ${d.focus ? `<div style="margin-top:4px;color:var(--accent);font-size:14px">Акцент: ${esc(d.focus)}</div>` : ''}
       <div class="sub" style="margin-top:6px">${strength.map((i) => esc(EX[i.ex].name)).join(' · ')} · дорожка</div>
       <div class="sub" style="margin-top:8px">${last ? 'Последний раз: ' + fmtDate(last, true) : 'Ещё не выполнялась'}</div>
     </button>`;
   }
-  html += `<div class="sub" style="margin-top:4px">Силовая ≈ 70–80 минут, плюс 15–20 минут ходьбы после.</div>
+  html += `<div class="sub" style="margin-top:4px">Силовая ≈ 65–75 минут, плюс 15–20 минут ходьбы после.</div>
     <div class="footer-links">
       <button class="btn ghost small" data-act="history">📈 История (${store.history.length})</button>
       <button class="btn ghost small" data-act="export">⬇ Резервная копия</button>
@@ -321,7 +342,7 @@ function viewDay(dayId) {
   const d = dayById(dayId);
   if (!d) return viewHome();
   let html = `<div class="topbar"><button class="icon-btn" data-act="back">←</button>
-    <div class="title"><b>${esc(d.title)} · ${esc(d.weekdayName)}</b><span class="sub">${d.items.length} упражнений</span></div></div>
+    <div class="title"><b>${esc(d.title)} · ${esc(d.weekdayName)}</b><span class="sub">${d.focus ? 'акцент: ' + esc(d.focus) : d.items.length + ' упражнений'}</span></div></div>
     <div class="wrap"><div class="card">`;
   for (const it of d.items) {
     const ex = EX[it.ex];
@@ -331,7 +352,7 @@ function viewDay(dayId) {
       continue;
     }
     const last = store.last[it.ex];
-    html += `<div class="ex-line"><div><b>${esc(ex.name)}</b>
+    html += `<div class="ex-line"><div><b>${esc(ex.name)}</b>${it.note ? ` <span class="badge">${esc(it.note)}</span>` : ''}
       <div class="sub">отдых ${esc(it.restText)}${it.alts && it.alts.length ? ' · альт: ' + it.alts.map((k) => esc(EX[k].name.toLowerCase())).join(', ') : ''}</div>
       ${last ? `<div class="sub">рабочий вес: ${setsText(last.sets, it.ex)}</div>` : ''}</div>
       <div style="white-space:nowrap">${it.sets} × ${esc(it.reps)}</div></div>`;
@@ -390,7 +411,7 @@ function viewWorkout() {
   if (it.cardio) {
     html += viewCardio(it);
   } else {
-    html += `<div class="sub">${planItem.sets} × ${esc(planItem.reps)} · отдых ${esc(planItem.restText)}</div>`;
+    html += `<div class="sub">${planItem.sets} × ${esc(planItem.reps)} · отдых ${esc(planItem.restText)}${planItem.note ? ` <span class="badge">${esc(planItem.note)}</span>` : ''}</div>`;
     const options = [planItem.ex, ...(planItem.alts || [])];
     if (options.length > 1) {
       html += `<div class="chips">${options.map((k, i) =>
