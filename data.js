@@ -284,8 +284,37 @@ const EX = {
     ],
     mistakes: ['Округлённая спина', 'Приседание вместо отведения таза', 'Гантели далеко от ног']
   },
-  lateral_raise: {
-    name: 'Махи гантелями в стороны', gif: 'DsgkuIt', muscles: 'Средняя дельта',
+  pullover: {
+    name: 'Пуловер на верхнем блоке', gif: 'x69MAlq', muscles: 'Широчайшие, большая круглая',
+    tips: [
+      'Встань в шаге от блока, лёгкий наклон корпуса вперёд, колени чуть согнуты.',
+      'Хват на ширине плеч, руки почти прямые — угол в локтях не меняется.',
+      'Опускай рукоять дугой к бёдрам за счёт широчайших, плечи опущены.',
+      'Внизу сожми спину на секунду, вверх возвращай медленно до растяжения.'
+    ],
+    mistakes: ['Сгибание локтей — движение превращается в разгибание на трицепс', 'Раскачивание корпусом', 'Плечи поднимаются к ушам']
+  },
+  rope_pullover: {
+    name: 'Пуловер на блоке с канатом', gif: 'DT14T9T', muscles: 'Широчайшие, большая круглая',
+    tips: [
+      'Возьми канат, отступи на шаг, наклонись вперёд с прямой спиной.',
+      'Почти прямыми руками тяни канат дугой к бёдрам, внизу разведи концы.',
+      'Медленно возвращай вверх до растяжения широчайших.'
+    ],
+    mistakes: ['Сгибание локтей', 'Рывки корпусом']
+  },
+  chest_row: {
+    name: 'Тяга в тренажёре с упором грудью', gif: '7I6LNUG', muscles: 'Спина (широчайшие, ромбовидные), задняя дельта',
+    tips: [
+      'Отрегулируй сиденье: ручки на уровне низа груди, грудь плотно на упоре.',
+      'Начни со сведения лопаток, затем тяни локтями назад вдоль корпуса.',
+      'Вверху (в конце тяги) пауза 1 сек, лопатки сжаты.',
+      'Возвращай медленно до полного растяжения, не отрывая грудь от упора.',
+      'Упор снимает нагрузку с поясницы — можно работать тяжелее, но без рывков.'
+    ],
+    mistakes: ['Грудь отрывается от упора', 'Тянешь бицепсом, а не спиной', 'Короткая амплитуда']
+  },
+  lateral_raise: {    name: 'Махи гантелями в стороны', gif: 'DsgkuIt', muscles: 'Средняя дельта',
     tips: [
       'Стой ровно, корпус чуть наклонён вперёд, локти слегка согнуты.',
       'Поднимай гантели в стороны до уровня плеч — не выше.',
@@ -363,7 +392,7 @@ const PLAN = [
   {
     id: 'd1', title: 'День 1', weekday: 2, weekdayName: 'Вторник', focus: 'спина и плечи',
     items: [
-      { ex: 'lat_pulldown', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hammer_pulldown_wide'] },
+      { ex: 'pullover', sets: 3, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['rope_pullover'] },
       { ex: 'smith_bench', sets: 3, reps: '8–10', rest: 150, restText: '2–3 мин', alts: ['hammer_press'] },
       { ex: 'machine_shoulder', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['db_shoulder'] },
       { ex: 'lateral_raise', sets: 4, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
@@ -378,7 +407,7 @@ const PLAN = [
     items: [
       { ex: 'leg_press', sets: 3, reps: '10–12', rest: 150, restText: '2–3 мин', alts: ['lunges', 'leg_ext'] },
       { ex: 'smith_incline', sets: 3, reps: '10', rest: 120, restText: '2 мин', alts: ['butterfly', 'db_fly'] },
-      { ex: 'cable_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hammer_row_narrow'] },
+      { ex: 'chest_row', sets: 3, reps: '8–12', rest: 120, restText: '2 мин', alts: ['hammer_row_narrow'] },
       { ex: 'db_shoulder', sets: 3, reps: '10', rest: 120, restText: '2 мин', alts: ['machine_shoulder'] },
       { ex: 'pushdown', sets: 3, reps: '12', rest: 75, restText: '60–90 с', alts: ['rope_pushdown'] },
       { ex: 'hanging_raise', sets: 3, reps: '12', rest: 60, restText: '60 с', alts: ['cable_crunch'] },
@@ -389,7 +418,7 @@ const PLAN = [
   {
     id: 'd3', title: 'День 3', weekday: 6, weekdayName: 'Суббота', focus: 'спина, плечи, задняя поверхность бедра',
     items: [
-      { ex: 'hammer_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['lat_pulldown'] },
+      { ex: 'hammer_row', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['pullover'] },
       { ex: 'hammer_press', sets: 3, reps: '10', rest: 150, restText: '2–3 мин', alts: ['smith_bench'] },
       { ex: 'lateral_raise', sets: 4, reps: '12–15', rest: 75, restText: '60–90 с', alts: ['cable_lateral'] },
       { ex: 'db_rdl', sets: 3, reps: '10–12', rest: 120, restText: '2 мин', alts: ['hyperext'] },

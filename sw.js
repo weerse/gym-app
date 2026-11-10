@@ -1,4 +1,4 @@
-const CACHE = 'gym-v3';
+const CACHE = 'gym-v4';
 const ASSETS = [
   './', 'index.html', 'app.js', 'data.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png',
@@ -17,6 +17,7 @@ const ASSETS = [
   'gif/deadhang.gif',
   'gif/DOoWcnA.gif',
   'gif/DsgkuIt.gif',
+  'gif/DT14T9T.gif',
   'gif/dU605di.gif',
   'gif/fUBheHs.gif',
   'gif/G08RZcQ.gif',
@@ -34,6 +35,7 @@ const ASSETS = [
   'gif/vqsbmL0.gif',
   'gif/wEulIzp.gif',
   'gif/WW95auq.gif',
+  'gif/x69MAlq.gif',
   'gif/yz9nUhF.gif',
   'gif/Zg3XY7P.gif',
   'gif/zhMwOwE.gif',

@@ -183,7 +183,8 @@ function finishWorkout() {
   const a = store.active;
   if (!a) return;
   const day = dayById(a.dayId);
-  const entry = { id: a.startedAt, dayId: a.dayId, title: day.title, startedAt: a.startedAt, finishedAt: Date.now(), items: [] };
+  const water = a.items.reduce((sum, it) => sum + (it.water && it.water.done ? it.water.ml : 0), 0);
+  const entry = { id: a.startedAt, dayId: a.dayId, title: day.title, startedAt: a.startedAt, finishedAt: Date.now(), items: [], water };
   for (const it of a.items) {
     if (it.cardio) {
       const c = it.cardio;
@@ -403,6 +404,7 @@ function viewWorkout() {
       <button class="btn small ghost" data-act="finish">Завершить</button>
     </div>
     <div class="wrap">
+      ${waterBanner(a)}
       <div class="dots">${dots}</div>
       <div class="gif"><img src="gif/${ex.gif}.gif" alt="${esc(ex.name)}" loading="eager"></div>
       <div class="muscles">🎯 ${esc(ex.muscles)}</div>
@@ -503,6 +505,22 @@ function renderRest() {
   tick();
 }
 
+// ---------- Вода ----------
+// После каждого силового упражнения 100 мл, после 4-го — 150 мл.
+const waterMl = (slot) => (slot === 3 ? 150 : 100);
+
+function askWater(it) {
+  if (!it || it.cardio || it.water || !it.sets.some((s) => s.done)) return;
+  it.water = { ml: waterMl(it.slot), done: false };
+  toast(`💧 Выпей ${it.water.ml} мл воды`);
+}
+function waterBanner(a) {
+  const ml = a.items.reduce((sum, it) => sum + (it.water && !it.water.done ? it.water.ml : 0), 0);
+  if (!ml) return '';
+  return `<div class="water"><span>💧 Выпей <b>${ml} мл</b> воды</span>
+    <button class="btn small primary" data-act="water-done">Выпил ✓</button></div>`;
+}
+
 function viewSummary(id) {
   const e = store.history.find((x) => x.id === id);
   if (!e) return viewHome();
@@ -517,6 +535,7 @@ function viewSummary(id) {
       <div><b>${sets}</b><span>подходов</span></div>
       <div><b>${Math.round(vol).toLocaleString('ru-RU')}</b><span>кг тоннаж</span></div>
     </div>
+    ${e.water ? `<div class="sub" style="margin-bottom:4px">💧 Выпито воды: ${e.water} мл</div>` : ''}
     <div class="card" style="text-align:left">${historyItems(e)}</div>
     <button class="btn primary block" data-act="home">На главную</button>
   </div>`;
@@ -533,7 +552,7 @@ function viewHistory() {
   if (!store.history.length) html += '<div class="card muted">Здесь появятся завершённые тренировки.</div>';
   for (const e of store.history) {
     html += `<details class="card hist-item"><summary class="row between">
-        <div><b>${esc(e.title)}</b><div class="sub">${fmtDate(e.finishedAt, true)} · ${fmtTime((e.finishedAt - e.startedAt) / 1000)}</div></div><span class="muted">▾</span>
+        <div><b>${esc(e.title)}</b><div class="sub">${fmtDate(e.finishedAt, true)} · ${fmtTime((e.finishedAt - e.startedAt) / 1000)}${e.water ? ` · 💧 ${e.water} мл` : ''}</div></div><span class="muted">▾</span>
       </summary>${historyItems(e)}
       <button class="btn small ghost" style="margin-top:10px;color:var(--danger)" data-act="del-hist" data-id="${e.id}">Удалить запись</button>
     </details>`;
@@ -562,7 +581,8 @@ document.addEventListener('click', (ev) => {
     case 'history': go('history'); break;
 
     case 'prev': if (a.idx > 0) { a.idx--; save(); stopRestOverlayOnly(); render(); window.scrollTo(0, 0); } break;
-    case 'next': if (a.idx < a.items.length - 1) { a.idx++; save(); stopRestOverlayOnly(); render(); window.scrollTo(0, 0); } break;
+    case 'water-done': a.items.forEach((x) => { if (x.water) x.water.done = true; }); save(); render(); break;
+    case 'next': if (a.idx < a.items.length - 1) { askWater(it); a.idx++; save(); stopRestOverlayOnly(); render(); window.scrollTo(0, 0); } break;
     case 'finish': {
       const anyDone = a.items.some((x) => x.cardio ? x.cardio.done : x.sets.some((s) => s.done));
       if (confirm(anyDone ? 'Завершить и сохранить тренировку?' : 'Ни один подход не отмечен. Всё равно завершить?')) { stopRest(); finishWorkout(); }
@@ -590,8 +610,9 @@ document.addEventListener('click', (ev) => {
           s.r = inp ? inp.placeholder : maxReps(planItem.reps);
         }
         s.done = true;
-        save(); render();
         const allDone = it.sets.every((x) => x.done);
+        if (allDone) askWater(it);
+        save(); render();
         if (!(allDone && a.idx === a.items.length - 1)) startRest(planItem.rest);
       } else {
         s.done = false; save(); render();
