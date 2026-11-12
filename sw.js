@@ -1,6 +1,6 @@
-const CACHE = 'gym-v4';
+const CACHE = 'gym-v5';
 const ASSETS = [
-  './', 'index.html', 'app.js', 'data.js', 'manifest.webmanifest',
+  './', 'index.html', 'app.js', 'data.js', 'analysis.js', 'seed.js', 'nutrition.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png',
   'gif/0CXGHya.gif',
   'gif/10Z2DXU.gif',

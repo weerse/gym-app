@@ -97,12 +97,54 @@
   .footer-links { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
   .water { position: sticky; top: 64px; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #12324a; border: 1px solid #2b6c99; color: #d8eeff; border-radius: 12px; padding: 8px 8px 8px 14px; margin-bottom: 10px; }
   .water .btn { flex: none; }
+  /* Вкладки главного экрана и демо-режим */
+  .segs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin: 4px 0 8px; }
+  .seg { flex: 1; padding: 10px 4px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .seg.on { background: var(--card2); color: var(--text); }
+  .demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #3a2a07; border: 1px solid #7a5a12; color: #ffe2a6; border-radius: 12px; padding: 8px 8px 8px 12px; margin: 4px 0 8px; font-size: 14px; }
+  .remind { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; border-color: var(--warn); }
+  /* Питание и прогресс */
+  .num.need { border-color: var(--warn); }
+  .pbar { height: 10px; background: var(--card2); border-radius: 5px; overflow: hidden; margin: 8px 0 10px; }
+  .pbar i { display: block; height: 100%; background: var(--warn); border-radius: 5px; transition: width .3s; }
+  .pbar i.full { background: var(--accent); }
+  .qbtns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .qbtns .btn { flex-direction: column; gap: 0; padding: 8px 4px; line-height: 1.2; }
+  .qbtns small, .energy small { font-size: 10px; color: var(--muted); font-weight: 400; }
+  .energy { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .energy button { display: flex; flex-direction: column; align-items: center; padding: 8px 0; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); font-size: 22px; }
+  .energy button.on { border-color: var(--accent); background: #183323; }
+  .thumb { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--card2); padding: 0; position: relative; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.big { width: 100%; height: auto; aspect-ratio: 3/4; }
+  .thumb.big span { position: absolute; left: 0; right: 0; bottom: 0; background: #000a; font-size: 12px; padding: 4px; }
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photo-view { position: fixed; inset: 0; z-index: 30; background: #000e; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 16px; }
+  .photo-view img { max-width: 100%; max-height: 80vh; object-fit: contain; align-self: center; border-radius: 12px; }
+  .verdict { border-width: 2px; }
+  .verdict.green { border-color: var(--accent); }
+  .verdict.yellow { border-color: var(--warn); }
+  .verdict.red { border-color: var(--danger); }
+  .verdict .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .verdict .main { font-size: 20px; font-weight: 700; margin: 6px 0; line-height: 1.3; }
+  .verdict ul { margin: 6px 0 0; padding-left: 18px; color: #d7d7dc; font-size: 14px; }
+  .warn-line { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--card2); font-size: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .kpis div { background: var(--card2); border-radius: 10px; padding: 8px; text-align: center; }
+  .kpis b { display: block; font-size: 16px; }
+  .kpis span { font-size: 11px; color: var(--muted); }
+  .chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
   .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 20; }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script src="data.js"></script>
+<script src="analysis.js"></script>
+<script src="seed.js"></script>
 <script src="app.js"></script>
+<script src="nutrition.js"></script>
 </body>
 </html>

@@ -1,18 +1,33 @@
 'use strict';
 
 // ---------- Хранилище ----------
-const KEY = 'gym.v1';
+// Демо-режим работает с отдельным ключом: настоящие данные (gym.v1) он не трогает.
+const MODE_KEY = 'gym.mode';
+const isDemo = () => { try { return localStorage.getItem(MODE_KEY) === 'demo'; } catch (e) { return false; } };
+const storeKey = () => (isDemo() ? 'gym.demo' : 'gym.v1');
 let store = null; // загружается в самом конце, когда объявлены все функции
 
 function load() {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY));
+    const s = JSON.parse(localStorage.getItem(storeKey()));
     if (s && typeof s === 'object') return migrate(Object.assign(blank(), s));
   } catch (e) {}
   return blank();
 }
 function blank() {
-  return { last: {}, lastCardio: null, variant: {}, history: [], active: null };
+  // Без поля v: иначе Object.assign(blank(), старые_данные) пометит старые данные как новые.
+  return { last: {}, lastCardio: null, variant: {}, history: [], active: null, nutrition: blankNutrition() };
+}
+// Питание и прогресс. Даты — локальные ключи 'YYYY-MM-DD'.
+//   days:   { '2026-11-12': { weight, protein, steps, kcal, energy } } — любые поля могут отсутствовать
+//   waist:  { '2026-11-10': 84.5 } — обхват талии, раз в неделю
+//   photos: [{ id, date }] — сами изображения лежат в IndexedDB (см. nutrition.js)
+//   settings.proteinGoal / kcal: null — считать автоматически от веса
+function blankNutrition() {
+  return {
+    settings: { weight: null, height: null, proteinGoal: null, stepsGoal: 8000 },
+    days: {}, waist: {}, photos: []
+  };
 }
 
 // Старые версии плана: нужны, чтобы перенести данные, сохранённые до их изменения.
@@ -48,8 +63,12 @@ function migrate(s) {
     a.items.forEach((it) => { it.base = old ? old[it.slot] : it.ex; });
   }
   if (a) rebaseActive(a, s);
-  s.v = 3;
-  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+  // v4: раздел «Питание и прогресс». Недостающие части дополняем пустыми значениями.
+  const n = blankNutrition();
+  s.nutrition = Object.assign(n, s.nutrition || {});
+  s.nutrition.settings = Object.assign(blankNutrition().settings, s.nutrition.settings || {});
+  s.v = 4;
+  try { localStorage.setItem(storeKey(), JSON.stringify(s)); } catch (e) {}
   return s;
 }
 
@@ -69,8 +88,10 @@ function rebaseActive(a, s) {
     return o ? Object.assign(o, { slot, base: pi.ex }) : newItem(a.dayId, pi, slot, s.variant, s);
   });
   a.idx = Math.max(0, a.items.indexOf(cur));
-}function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
+}
+
+function save() {
+  try { localStorage.setItem(storeKey(), JSON.stringify(store)); } catch (e) {}
 }
 
 // ---------- Утилиты ----------
@@ -229,6 +250,7 @@ function stopRest() {
 }
 
 function tick() {
+  if (!store) return;
   const a = store.active;
   if (!a) return;
   const el = $('#elapsed');
@@ -274,12 +296,18 @@ window.addEventListener('popstate', (e) => {
   render();
 });
 
+// Точки расширения для других модулей (nutrition.js): свои экраны, кнопки и поля ввода.
+const VIEWS = {};        // имя экрана → (arg) => html
+const ACTIONS = {};      // data-act → (button, event) => void
+const INPUT_HOOKS = [];  // (input) => true, если поле обработано
+
 function render() {
   const v = view.name;
   if (v === 'workout' && store.active) app.innerHTML = viewWorkout();
   else if (v === 'day') app.innerHTML = viewDay(view.arg);
   else if (v === 'summary') app.innerHTML = viewSummary(view.arg);
   else if (v === 'history') app.innerHTML = viewHistory();
+  else if (VIEWS[v]) app.innerHTML = VIEWS[v](view.arg);
   else app.innerHTML = viewHome();
   if (v === 'workout' && store.active && store.active.rest) renderRest();
   tick();
@@ -304,8 +332,10 @@ function viewHome() {
   const today = new Date().getDay();
   const next = nextDayId();
   let html = `<div class="wrap">
+    ${demoBanner()}${homeTabs('home')}
     <h1>Тренировки</h1>
-    <div class="sub">${esc(new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }))}</div>`;
+    <div class="sub">${esc(new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
+    ${typeof morningReminder === 'function' ? morningReminder() : ''}`;
   if (a) {
     const d = dayById(a.dayId);
     html += `<div class="card" style="border-color:var(--warn)">
@@ -337,6 +367,17 @@ function viewHome() {
     </div>
   </div>`;
   return html;
+}
+
+// Вкладки главного экрана. Переключение заменяет запись в истории, чтобы «назад» не прыгал между вкладками.
+function homeTabs(active) {
+  const tab = (name, label) => `<button class="seg ${active === name ? 'on' : ''}" data-act="tab" data-view="${name}">${label}</button>`;
+  return `<div class="segs">${tab('home', '🏋️ Тренировки')}${tab('nutrition', '🥗 Питание и прогресс')}</div>`;
+}
+function demoBanner() {
+  if (!isDemo()) return '';
+  return `<div class="demo-bar"><span>🧪 Демо-режим: тестовые данные, твои не тронуты</span>
+    <button class="btn small" data-act="demo-exit">Выйти</button></div>`;
 }
 
 function viewDay(dayId) {
@@ -652,6 +693,16 @@ document.addEventListener('click', (ev) => {
       break;
     case 'export': exportData(); break;
     case 'import': importData(); break;
+    case 'tab':
+      view = { name: b.dataset.view, arg: null };
+      history.replaceState(view, ''); render(); window.scrollTo(0, 0);
+      break;
+    case 'demo-exit':
+      try { localStorage.removeItem(MODE_KEY); } catch (e) {}
+      store = load(); render(); toast('Твои данные на месте');
+      break;
+    default:
+      if (ACTIONS[act]) ACTIONS[act](b, ev);
   }
 });
 
@@ -663,6 +714,7 @@ function stopRestOverlayOnly() {
 // Значения полей сохраняем сразу, без перерисовки, чтобы не терять фокус.
 document.addEventListener('input', (ev) => {
   const t = ev.target;
+  for (const h of INPUT_HOOKS) if (h(t)) return;
   const a = store.active;
   if (!a) return;
   const it = a.items[a.idx];
@@ -701,8 +753,11 @@ function readInputs() {
 }
 
 // ---------- Резервная копия ----------
-function exportData() {
-  const blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' });
+async function exportData() {
+  if (isDemo()) { alert('Сейчас включён демо-режим. Выйди из него, чтобы сохранить свои данные.'); return; }
+  // Фото прогресса хранятся в IndexedDB — добавляем их в файл копии.
+  const photoData = typeof Photos !== 'undefined' ? await Photos.exportAll(store.nutrition.photos) : {};
+  const blob = new Blob([JSON.stringify(Object.assign({}, store, { photoData }), null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url; link.download = 'trenirovki-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -716,19 +771,27 @@ function importData() {
     try {
       const data = JSON.parse(await inp.files[0].text());
       if (!data || !Array.isArray(data.history)) throw new Error();
+      if (isDemo()) { alert('Сейчас включён демо-режим. Выйди из него, чтобы восстановить свои данные.'); return; }
       if (!confirm('Заменить текущие данные данными из файла?')) return;
-      store = migrate(Object.assign(blank(), data)); save(); render(); toast('Данные восстановлены');
+      const photoData = data.photoData || {};
+      delete data.photoData;
+      store = migrate(Object.assign(blank(), data)); save();
+      if (typeof Photos !== 'undefined') await Photos.importAll(photoData);
+      render(); toast('Данные восстановлены');
     } catch (e) { alert('Не удалось прочитать файл'); }
   };
   inp.click();
 }
 
 // ---------- Старт ----------
-store = load();
-history.replaceState(view, '');
-if (store.active) view = { name: 'workout' }, history.replaceState(view, '');
-render();
-if (store.active) keepAwake(true);
+// После загрузки всех скриптов: nutrition.js регистрирует свои экраны позже app.js.
+document.addEventListener('DOMContentLoaded', () => {
+  store = load();
+  history.replaceState(view, '');
+  if (store.active) view = { name: 'workout' }, history.replaceState(view, '');
+  render();
+  if (store.active) keepAwake(true);
+});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

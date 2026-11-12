@@ -1,0 +1,8 @@
+{
+  "name": "gym-app",
+  "private": true,
+  "description": "Личное PWA для тренировок",
+  "scripts": {
+    "test": "node --test"
+  }
+}
